@@ -146,3 +146,9 @@ DLL_PUBLIC void UniG::set_verbosity(uint32_t verb)
 {
     data->conf.verb = verb;
 }
+
+DLL_PUBLIC void UniG::set_unisamp(int use_unisamp)
+{
+    data->conf.use_unisamp = use_unisamp;
+    std::cout << "x UniSamp Set" << std::endl;
+}

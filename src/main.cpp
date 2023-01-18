@@ -75,6 +75,7 @@ uint32_t detach_xors = 1;
 uint32_t reuse_models = 1;
 uint32_t force_sol_extension = 0;
 uint32_t sparse;
+int use_unisamp = 0;
 
 //Arjun
 vector<uint32_t> sampling_vars;
@@ -142,6 +143,8 @@ void add_UniGen_options()
          "Logs of ApproxMC execution")
     ("emptyocc", po::value(&do_empty_occ)->default_value(do_empty_occ),
          "Use empty occ")
+    ("unisamp", po::value(&use_unisamp)->default_value(use_unisamp)
+        , "Use UniSamp strategy to sample")
     ;
 
     ArjunNS::Arjun tmpa;
@@ -583,6 +586,7 @@ int main(int argc, char** argv)
 
     appmc->set_projection_set(sampling_vars_orig);
     unigen->set_verbosity(verbosity);
+    unigen->set_unisamp(use_unisamp);
     unigen->set_verb_banning_cls(verb_banning_cls);
     unigen->set_kappa(kappa);
     unigen->set_multisample(multisample);

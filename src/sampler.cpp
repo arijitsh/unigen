@@ -313,6 +313,17 @@ void Sampler::sample(
 
     double si = round(solCount.hashCount + log2(solCount.cellSolCount)
         + log2(1.8) - log2(threshold_Samplergen)) - 2;
+    if(conf.use_unisamp){
+        uint32_t hiThreshUniSamp = 802;
+        const uint64_t solutionCount = bounded_sol_count(
+            hiThreshUniSamp // max num solutions
+            , NULL // no assumptions to use
+            , 0
+            , 1 // loThresh
+        ).solutions;
+        si = solutionCount - hiThreshUniSamp; /* solutionCount < hiThreshUniSamp indicate ideal case */
+        /* TODO (AS) but bounded_sol_count has already covered the ideal case, isnt it? */
+    }
     if (si > 0) {
         conf.startiter = si;
     } else {
@@ -370,7 +381,10 @@ void Sampler::generate_samples(const uint32_t num_samples_needed)
 {
     double genStartTime = cpuTimeTotal();
 
-    hiThresh = ceil(1 + (1.4142136 * (1 + conf.kappa) * threshold_Samplergen));
+    if (conf.use_unisamp)
+        hiThresh = 802; // TODO (AS) replace by more accurate values
+    else
+        hiThresh = ceil(1 + (1.4142136 * (1 + conf.kappa) * threshold_Samplergen));
     loThresh = floor(threshold_Samplergen / (1.4142136 * (1 + conf.kappa)));
     const uint32_t samplesPerCall = sols_to_return(num_samples_needed);
     const uint32_t callsNeeded =
@@ -398,10 +412,16 @@ void Sampler::generate_samples(const uint32_t num_samples_needed)
     if (conf.startiter > 0) {
         uint32_t lastSuccessfulHashOffset = 0;
         while(samples < num_samples_needed) {
-            samples += gen_n_samples(
-                callsPerLoop,
-                &lastSuccessfulHashOffset,
-                num_samples_needed);
+            if(conf.use_unisamp){
+                std::cout << "cx Using UniSamp" << std::endl;
+                samples += gen_n_samples_unisamp(
+                    num_samples_needed);
+            } else {
+                samples += gen_n_samples(
+                    callsPerLoop,
+                    &lastSuccessfulHashOffset,
+                    num_samples_needed);
+            }
         }
     } else {
         /* Ideal sampling case; enumerate all solutions */
@@ -437,6 +457,33 @@ void Sampler::generate_samples(const uint32_t num_samples_needed)
         << endl;
 
         cout << "c [unig] Samples generated: " << samples << endl;
+    }
+}
+
+uint32_t Sampler::gen_n_samples_unisamp(
+    const uint32_t num_samples_needed)
+{
+    SparseData sparse_data(-1);
+    uint32_t num_samples = 0;
+    uint32_t i = 0;
+    while(i < num_samples_needed){
+        map<uint64_t, Hash> hashes;
+        appmc->set_delta(std::min(0.1,conf.unisamp_epsilon/0.4));
+        appmc->set_epsilon(std::sqrt(2) - 1);
+        auto appx_count = appmc->count();
+        double pivot = 200; //TODO AS use correctly
+        uint32_t currentHashCount = floor(log2(appx_count.cellSolCount/pivot)+ appx_count.hashCount + 0.5);
+        const vector<Lit> assumps = set_num_hashes(currentHashCount, hashes);
+        const uint64_t solutionCount = bounded_sol_count(
+                    hiThresh // max num solutions
+                    , &assumps //assumptions to use
+                    , currentHashCount
+                    , loThresh //min number of solutions (samples not output otherwise)
+                ).solutions;
+        if (solutionCount <= hiThresh){
+            // TODO show solutions
+        }
+        return num_samples;
     }
 }
 

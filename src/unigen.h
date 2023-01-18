@@ -72,6 +72,7 @@ public:
     void set_force_sol_extension(bool force_sol_extension);
     void set_logfile(std::ostream* logfile);
     void set_verbosity(uint32_t verb);
+    void set_unisamp(int use_unisamp);
     void set_callback(UniGen::callback f, void* data);
 
     //Querying default values

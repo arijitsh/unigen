@@ -130,6 +130,9 @@ private:
     uint32_t sols_to_return(uint32_t numSolutions);
     void add_Sampler_options();
     bool gen_rhs();
+    uint32_t gen_n_samples_unisamp(
+        const uint32_t num_samples_needed
+    );
     uint32_t gen_n_samples(
         const uint32_t samples
         , uint32_t* lastSuccessfulHashOffset

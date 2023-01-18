@@ -35,6 +35,8 @@
 struct Config {
     uint32_t startiter = 0;
     unsigned verb = 1;
+    unsigned use_unisamp = 0;
+    double unisamp_epsilon = 0.8;
     unsigned verb_banning_cls = 0;
     bool only_indep_samples = true;
     uint32_t multisample = 1;
