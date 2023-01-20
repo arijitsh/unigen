@@ -586,10 +586,10 @@ int main(int argc, char** argv)
 
     appmc->set_projection_set(sampling_vars_orig);
     unigen->set_verbosity(verbosity);
-    unigen->set_unisamp(use_unisamp);
     unigen->set_verb_banning_cls(verb_banning_cls);
     unigen->set_kappa(kappa);
     unigen->set_multisample(multisample);
+    unigen->set_unisamp(use_unisamp); // This should be called after multisample, as it disables multisample
     unigen->set_only_indep_samples(only_indep_samples);
     unigen->set_force_sol_extension(force_sol_extension);
 

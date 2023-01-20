@@ -150,5 +150,8 @@ DLL_PUBLIC void UniG::set_verbosity(uint32_t verb)
 DLL_PUBLIC void UniG::set_unisamp(int use_unisamp)
 {
     data->conf.use_unisamp = use_unisamp;
-    std::cout << "x UniSamp Set" << std::endl;
+    if (use_unisamp){
+        data->conf.multisample = false;
+        std::cout << "c Using UniSamp Strategy, epsilon = " << data->conf.unisamp_epsilon << std::endl;
+    }
 }

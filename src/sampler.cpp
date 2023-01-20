@@ -325,7 +325,7 @@ void Sampler::sample(
         /* TODO (AS) but bounded_sol_count has already covered the ideal case, isnt it? */
     }
     if (si > 0) {
-        conf.startiter = si;
+        conf.startiter = 1; // TODO (AS) actually it was si, what should be done here?
     } else {
         conf.startiter = 0;   /* Indicate ideal sampling case */
     }
@@ -413,7 +413,6 @@ void Sampler::generate_samples(const uint32_t num_samples_needed)
         uint32_t lastSuccessfulHashOffset = 0;
         while(samples < num_samples_needed) {
             if(conf.use_unisamp){
-                std::cout << "cx Using UniSamp" << std::endl;
                 samples += gen_n_samples_unisamp(
                     num_samples_needed);
             } else {
@@ -464,7 +463,6 @@ uint32_t Sampler::gen_n_samples_unisamp(
     const uint32_t num_samples_needed)
 {
     SparseData sparse_data(-1);
-    uint32_t num_samples = 0;
     uint32_t i = 0;
     while(i < num_samples_needed){
         map<uint64_t, Hash> hashes;
@@ -472,7 +470,11 @@ uint32_t Sampler::gen_n_samples_unisamp(
         appmc->set_epsilon(std::sqrt(2) - 1);
         auto appx_count = appmc->count();
         double pivot = 200; //TODO AS use correctly
-        uint32_t currentHashCount = floor(log2(appx_count.cellSolCount/pivot)+ appx_count.hashCount + 0.5);
+        if (conf.verb) {
+            std::cout << "cx ApproxCount "
+            << appx_count.cellSolCount << "*2^" << appx_count.hashCount << std::endl;
+        }
+        int currentHashCount = std::max(0,(int)floor(log2(appx_count.cellSolCount/pivot)+ appx_count.hashCount + 0.5));
         const vector<Lit> assumps = set_num_hashes(currentHashCount, hashes);
         const uint64_t solutionCount = bounded_sol_count(
                     hiThresh // max num solutions
@@ -480,10 +482,8 @@ uint32_t Sampler::gen_n_samples_unisamp(
                     , currentHashCount
                     , loThresh //min number of solutions (samples not output otherwise)
                 ).solutions;
-        if (solutionCount <= hiThresh){
-            // TODO show solutions
-        }
-        return num_samples;
+        i += sols_to_return(num_samples_needed);
+        return i;
     }
 }
 
