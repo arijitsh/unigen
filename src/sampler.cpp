@@ -325,7 +325,7 @@ void Sampler::sample(
         /* TODO (AS) but bounded_sol_count has already covered the ideal case, isnt it? */
     }
     if (si > 0) {
-        conf.startiter = 1; // TODO (AS) actually it was si, what should be done here?
+        conf.startiter = si; // TODO (AS) actually it was si, what should be done here?
     } else {
         conf.startiter = 0;   /* Indicate ideal sampling case */
     }
@@ -426,7 +426,7 @@ void Sampler::generate_samples(const uint32_t num_samples_needed)
         /* Ideal sampling case; enumerate all solutions */
         vector<vector<int> > out_solutions;
         const uint32_t count = bounded_sol_count(
-            std::numeric_limits<uint32_t>::max() //max no. solutions
+            803 //max no. solutions
             , NULL //assumps is empty
             , 0 //number of hashes (information only)
             , 1 //min num. solutions
@@ -477,12 +477,12 @@ uint32_t Sampler::gen_n_samples_unisamp(
         int currentHashCount = std::max(0,(int)floor(log2(appx_count.cellSolCount/pivot)+ appx_count.hashCount + 0.5));
         const vector<Lit> assumps = set_num_hashes(currentHashCount, hashes);
         const uint64_t solutionCount = bounded_sol_count(
-                    hiThresh // max num solutions
+                    803 // max num solutions
                     , &assumps //assumptions to use
                     , currentHashCount
                     , loThresh //min number of solutions (samples not output otherwise)
                 ).solutions;
-        i += sols_to_return(num_samples_needed);
+        i += 1;
         return i;
     }
 }
