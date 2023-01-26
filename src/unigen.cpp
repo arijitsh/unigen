@@ -56,6 +56,7 @@ DLL_PUBLIC UniG::UniG(AppMC* appmc)
 {
     data = new UniGenPrivateData;
     data->sampler.appmc = appmc;
+    data->sampler.appmc_unisamp = appmc;
 }
 
 DLL_PUBLIC UniG::~UniG()
@@ -150,8 +151,8 @@ DLL_PUBLIC void UniG::set_verbosity(uint32_t verb)
 DLL_PUBLIC void UniG::set_unisamp(int use_unisamp)
 {
     data->conf.use_unisamp = use_unisamp;
-    if (use_unisamp){
+    if (data->conf.use_unisamp){
         data->conf.multisample = false;
-        std::cout << "c Using UniSamp Strategy, epsilon = " << data->conf.unisamp_epsilon << std::endl;
+        std::cout << "c [unisamp] Using UniSamp Strategy, epsilon = " << data->conf.unisamp_epsilon << std::endl;
     }
 }

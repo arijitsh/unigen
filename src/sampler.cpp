@@ -146,8 +146,11 @@ SolNum Sampler::bounded_sol_count(
         vector<vector<int>>* out_solutions
 ) {
     if (conf.verb) {
-        cout << "c [unig] "
-        "[ " << std::setw(7) << std::setprecision(2) << std::fixed
+        if (conf.use_unisamp)
+            cout << "c [unisamp] ";
+        else
+            cout << "c [unig] ";
+        cout << "[ " << std::setw(7) << std::setprecision(2) << std::fixed
         << (cpuTimeTotal()-startTime)
         << " ]"
         << " bounded_sol_count looking for " << std::setw(4) << maxSolutions << " solutions"
@@ -259,10 +262,26 @@ SolNum Sampler::bounded_sol_count(
                 modelIndices.push_back(i);
             }
             std::shuffle(modelIndices.begin(), modelIndices.end(), randomEngine);
+            if (conf.use_unisamp == 0 || hashCount == 0){
+                for (uint32_t i = 0; i < sols_to_return(solutions); i++) {
+                    const auto& model = models.at(modelIndices.at(i));
+                    callback_func(get_solution_ints(model), callback_func_data);
+                }
+            } else {
+                assert(conf.use_unisamp && hashCount > 0);
+                std::uniform_int_distribution<> distrib(1, maxSolutions);
+                uint32_t k = distrib(randomEngine);
+                cout << "c [UniSamp] BSAT thresh = " << maxSolutions
+                     << " |W| = " << solutions
+                     << " k = " << k << endl;
+                if (k <= solutions){
+                    const auto& model = models.at(modelIndices.at(k));
+                    callback_func(get_solution_ints(model), callback_func_data);
+                    cout << "c [UniSamp] Generated a solution by unisamp" << endl;
+                } else {
+                    cout << "c [UniSamp] no solutions generated in this iteration of unisamp" << endl;
+                }
 
-            for (uint32_t i = 0; i < sols_to_return(solutions); i++) {
-                const auto& model = models.at(modelIndices.at(i));
-                callback_func(get_solution_ints(model), callback_func_data);
             }
         }
     }
@@ -313,7 +332,9 @@ void Sampler::sample(
 
     double si = round(solCount.hashCount + log2(solCount.cellSolCount)
         + log2(1.8) - log2(threshold_Samplergen)) - 2;
-    if(conf.use_unisamp){
+    /*
+     * (AS) initially wrote this to indicate no hashes case in UniSamp
+     * if(conf.use_unisamp){
         uint32_t hiThreshUniSamp = 802;
         const uint64_t solutionCount = bounded_sol_count(
             hiThreshUniSamp // max num solutions
@@ -321,11 +342,12 @@ void Sampler::sample(
             , 0
             , 1 // loThresh
         ).solutions;
-        si = solutionCount - hiThreshUniSamp; /* solutionCount < hiThreshUniSamp indicate ideal case */
-        /* TODO (AS) but bounded_sol_count has already covered the ideal case, isnt it? */
+        si = solutionCount - hiThreshUniSamp;  solutionCount < hiThreshUniSamp indicate ideal case
+        // TODO (AS) but bounded_sol_count has already covered the ideal case, isnt it?
     }
+    */
     if (si > 0) {
-        conf.startiter = si; // TODO (AS) actually it was si, what should be done here?
+        conf.startiter = si; // TODO (AS) any change needed in UniSamp?
     } else {
         conf.startiter = 0;   /* Indicate ideal sampling case */
     }
@@ -408,13 +430,25 @@ void Sampler::generate_samples(const uint32_t num_samples_needed)
         << ", startiter: " << conf.startiter << endl;
     }
 
-    uint32_t samples = 0;
-    if (conf.startiter > 0) {
+    uint32_t samples = 0, num_hashes = 0;
+
+    if(conf.use_unisamp){
+        appmc_unisamp->set_delta(std::min(0.1,conf.unisamp_epsilon/0.4));
+        appmc_unisamp->set_epsilon(std::sqrt(2) - 1);
+        auto appx_count = appmc_unisamp->count();
+        double pivot = 200; //TODO (AS) use correctly
+        if (conf.verb) {
+            std::cout << "c [unisamp] ApproxCount "
+            << appx_count.cellSolCount << "*2^" << appx_count.hashCount << std::endl;
+        }
+        num_hashes = std::max(0,(int)floor(log2(appx_count.cellSolCount/pivot)+ appx_count.hashCount + 0.5));
+    }
+
+    if (conf.startiter > 0 or conf.use_unisamp) {
         uint32_t lastSuccessfulHashOffset = 0;
         while(samples < num_samples_needed) {
             if(conf.use_unisamp){
-                samples += gen_n_samples_unisamp(
-                    num_samples_needed);
+                samples += gen_a_sample_unisamp(num_hashes);
             } else {
                 samples += gen_n_samples(
                     callsPerLoop,
@@ -459,32 +493,21 @@ void Sampler::generate_samples(const uint32_t num_samples_needed)
     }
 }
 
-uint32_t Sampler::gen_n_samples_unisamp(
-    const uint32_t num_samples_needed)
+uint32_t Sampler::gen_a_sample_unisamp(uint32_t num_hashes)
 {
     SparseData sparse_data(-1);
-    uint32_t i = 0;
-    while(i < num_samples_needed){
-        map<uint64_t, Hash> hashes;
-        appmc->set_delta(std::min(0.1,conf.unisamp_epsilon/0.4));
-        appmc->set_epsilon(std::sqrt(2) - 1);
-        auto appx_count = appmc->count();
-        double pivot = 200; //TODO AS use correctly
-        if (conf.verb) {
-            std::cout << "cx ApproxCount "
-            << appx_count.cellSolCount << "*2^" << appx_count.hashCount << std::endl;
-        }
-        int currentHashCount = std::max(0,(int)floor(log2(appx_count.cellSolCount/pivot)+ appx_count.hashCount + 0.5));
-        const vector<Lit> assumps = set_num_hashes(currentHashCount, hashes);
-        const uint64_t solutionCount = bounded_sol_count(
-                    803 // max num solutions
-                    , &assumps //assumptions to use
-                    , currentHashCount
-                    , loThresh //min number of solutions (samples not output otherwise)
-                ).solutions;
-        i += 1;
-        return i;
-    }
+
+    map<uint64_t, Hash> hashes;
+
+    const vector<Lit> assumps = set_num_hashes(num_hashes, hashes);
+    const uint64_t solutionCount = bounded_sol_count(
+                803 // max num solutions
+                , &assumps //assumptions to use
+                , num_hashes
+                , 1 //min number of solutions = 1
+            ).solutions;
+    return 1;
+
 }
 
 uint32_t Sampler::gen_n_samples(
@@ -636,6 +659,8 @@ void printVersionInfoSampler()
 /* Number of solutions to return from one invocation of gen_n_samples. */
 uint32_t Sampler::sols_to_return(uint32_t numSolutions)
 {
+    if (conf.use_unisamp == 1)
+        return 1;
     if (conf.startiter == 0)   // TODO improve hack for ideal sampling case?
         return numSolutions;
     else if (conf.multisample)
