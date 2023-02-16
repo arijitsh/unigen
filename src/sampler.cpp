@@ -157,6 +157,8 @@ SolNum Sampler::bounded_sol_count(
         << " -- hashes active: " << hashCount << endl;
     }
 
+    int unisamp_sol_generated=0;
+
     //Will we need to extend the solution?
     bool only_indep_sol = true;
     if (out_solutions != NULL) {
@@ -278,6 +280,7 @@ SolNum Sampler::bounded_sol_count(
                     const auto& model = models.at(modelIndices.at(k));
                     callback_func(get_solution_ints(model), callback_func_data);
                     cout << "c [UniSamp] Generated a solution by unisamp" << endl;
+                    unisamp_sol_generated=1;
                 } else {
                     cout << "c [UniSamp] no solutions generated in this iteration of unisamp" << endl;
                 }
@@ -298,6 +301,8 @@ SolNum Sampler::bounded_sol_count(
     cl_that_removes.push_back(Lit(sol_ban_var, false));
     solver->add_clause(cl_that_removes);
 
+    if (conf.use_unisamp)
+        return SolNum(unisamp_sol_generated,1);
     return SolNum(solutions, repeat);
 }
 
@@ -506,8 +511,8 @@ uint32_t Sampler::gen_a_sample_unisamp(uint32_t num_hashes)
                 , num_hashes
                 , 1 //min number of solutions = 1
             ).solutions;
-    return 1;
-
+    //assert(solutionCount > 0);
+    return solutionCount;
 }
 
 uint32_t Sampler::gen_n_samples(
