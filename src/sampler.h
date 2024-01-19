@@ -111,7 +111,7 @@ public:
         const Config conf,
         const SolCount sol_count,
         const uint32_t num_samples);
-    AppMC* appmc, *appmc_unisamp;
+    AppMC* appmc;
     SATSolver* solver = NULL;
     string get_version_info() const;
 
@@ -130,7 +130,6 @@ private:
     uint32_t sols_to_return(uint32_t numSolutions);
     void add_Sampler_options();
     bool gen_rhs();
-    uint32_t gen_a_sample_unisamp(uint32_t num_hashes);
     uint32_t gen_n_samples(
         const uint32_t samples
         , uint32_t* lastSuccessfulHashOffset

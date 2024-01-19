@@ -26,7 +26,6 @@
  */
 
 #include <boost/program_options.hpp>
-using boost::lexical_cast;
 namespace po = boost::program_options;
 using std::string;
 using std::vector;
@@ -74,7 +73,8 @@ double var_elim_ratio;
 uint32_t detach_xors = 1;
 uint32_t reuse_models = 1;
 uint32_t sparse;
-int use_unisamp = 0;
+uint32_t use_unisamp = 0;
+double unisamp_epsilon;
 
 //Arjun
 vector<uint32_t> sampling_vars;
@@ -127,10 +127,14 @@ void add_UniGen_options()
     ("input", po::value< vector<string> >(), "file(s) to read")
     ("verb,v", po::value(&verbosity)->default_value(1), "verbosity")
     ("seed,s", po::value(&seed)->default_value(seed), "Seed")
+    ("unisamp,us", po::value(&use_unisamp)->default_value(0)
+        , "Use UniSamp Strategy")
     ("version", "Print version info")
 
     ("epsilon", po::value(&epsilon)->default_value(epsilon, my_epsilon.str())
         , "epsilon parameter as per PAC guarantees")
+    ("unisamp_epsilon,se", po::value(&unisamp_epsilon)->default_value(unisamp_epsilon, my_epsilon.str())
+        , "epsilon parameter for unisamp sampler")
     ("delta", po::value(&delta)->default_value(delta, my_delta.str())
         , "delta parameter as per PAC guarantees; 1-delta is the confidence")
     ("log", po::value(&logfilename),
@@ -493,13 +497,6 @@ int main(int argc, char** argv)
         cout << unigen->get_version_info();
         cout << "c executed with command line: " << command_line << endl;
     }
-    if (!only_indep_samples) {
-        force_sol_extension = true;
-        if (verbosity) {
-            cout << "c Setting '--forcesolextension' to 1 since '--nosolext' is set to 0" << endl;
-        }
-    }
-
 
     //Main options
     appmc->set_verbosity(verbosity);
@@ -511,7 +508,6 @@ int main(int argc, char** argv)
     //Improvement options
     appmc->set_detach_xors(detach_xors);
     appmc->set_reuse_models(reuse_models);
-    appmc->set_force_sol_extension(force_sol_extension);
     appmc->set_sparse(sparse);
 
     //Misc options
