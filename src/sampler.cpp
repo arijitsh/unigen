@@ -74,10 +74,7 @@ Hash Sampler::add_hash(uint32_t hash_index)
 
     vars.push_back(act_var);
     solver->add_xor_clause(vars, rhs);
-    if (conf.verb_banning_cls) {
-        print_xor(vars, rhs);
-    }
-
+    if (conf.verb_sampler_cls) print_xor(vars, rhs);
     return h;
 }
 
@@ -146,30 +143,13 @@ SolNum Sampler::bounded_sol_count(
         vector<vector<int>>* out_solutions
 ) {
     if (conf.verb) {
-        if (conf.use_unisamp)
-            cout << "c [unisamp] ";
-        else
-            cout << "c [unig] ";
-        cout << "[ " << std::setw(7) << std::setprecision(2) << std::fixed
+        cout << "c [unig] "
+        "[ " << std::setw(7) << std::setprecision(2) << std::fixed
         << (cpuTimeTotal()-startTime)
         << " ]"
         << " bounded_sol_count looking for " << std::setw(4) << maxSolutions << " solutions"
         << " -- hashes active: " << hashCount << endl;
     }
-
-    int unisamp_sol_generated=0;
-
-    //Will we need to extend the solution?
-    bool only_indep_sol = true;
-    if (out_solutions != NULL) {
-        only_indep_sol = conf.only_indep_samples;
-    }
-
-    //Turn off improvement from ApproxMC4 research paper
-    if (conf.force_sol_extension) {
-        only_indep_sol = false;
-    }
-
     //Set up things for adding clauses that can later be removed
     vector<Lit> new_assumps;
     if (assumps) {
@@ -194,7 +174,6 @@ SolNum Sampler::bounded_sol_count(
             cout << "c [unig] inter-simp finished, total simp time: "
             << total_inter_simp_time << endl;
         }
-
     }
 
     const uint64_t repeat = add_glob_banning_cls(hm, sol_ban_var, hashCount);
@@ -202,8 +181,7 @@ SolNum Sampler::bounded_sol_count(
     double last_found_time = cpuTimeTotal();
     vector<vector<lbool>> models;
     while (solutions < maxSolutions) {
-        lbool ret = solver->solve(&new_assumps, only_indep_sol);
-        //COZ_PROGRESS_NAMED("one solution")
+        lbool ret = solver->solve(&new_assumps, false);
         assert(ret == l_False || ret == l_True);
 
         if (conf.verb >= 2) {
@@ -234,13 +212,9 @@ SolNum Sampler::bounded_sol_count(
         //Add solution to set
         solutions++;
         const vector<lbool> model = solver->get_model();
-        //#ifdef SLOW_DEBUG
         check_model(model, hm, hashCount);
-        //#endif
         models.push_back(model);
-        if (out_solutions) {
-            out_solutions->push_back(get_solution_ints(model));
-        }
+        if (out_solutions) out_solutions->push_back(get_solution_ints(model));
 
         //ban solution
         vector<Lit> lits;
@@ -249,9 +223,7 @@ SolNum Sampler::bounded_sol_count(
             assert(solver->get_model()[var] != l_Undef);
             lits.push_back(Lit(var, solver->get_model()[var] == l_True));
         }
-        if (conf.verb_banning_cls) {
-            cout << "c [unig] Adding banning clause: " << lits << endl;
-        }
+        if (conf.verb_sampler_cls)cout << "c [unig] Adding banning clause: " << lits << endl;
         solver->add_clause(lits);
     }
 
@@ -260,9 +232,7 @@ SolNum Sampler::bounded_sol_count(
         if (solutions >= minSolutions) {
             assert(minSolutions > 0);
             vector<size_t> modelIndices;
-            for (uint32_t i = 0; i < models.size(); i++) {
-                modelIndices.push_back(i);
-            }
+            for (uint32_t i = 0; i < models.size(); i++) modelIndices.push_back(i);
             std::shuffle(modelIndices.begin(), modelIndices.end(), randomEngine);
             if (conf.use_unisamp == 0 || hashCount == 0){
                 for (uint32_t i = 0; i < sols_to_return(solutions); i++) {
@@ -285,6 +255,9 @@ SolNum Sampler::bounded_sol_count(
                     cout << "c [UniSamp] no solutions generated in this iteration of unisamp" << endl;
                 }
 
+            for (uint32_t i = 0; i < sols_to_return(solutions); i++) {
+                const auto& model = models.at(modelIndices.at(i));
+                callback_func(get_solution_ints(model), callback_func_data);
             }
         }
     }
@@ -352,7 +325,7 @@ void Sampler::sample(
     }
     */
     if (si > 0) {
-        conf.startiter = si; // TODO (AS) any change needed in UniSamp?
+        conf.startiter = si;
     } else {
         conf.startiter = 0;   /* Indicate ideal sampling case */
     }
@@ -465,7 +438,7 @@ void Sampler::generate_samples(const uint32_t num_samples_needed)
         /* Ideal sampling case; enumerate all solutions */
         vector<vector<int> > out_solutions;
         const uint32_t count = bounded_sol_count(
-            803 //max no. solutions
+            std::numeric_limits<uint32_t>::max() //max no. solutions
             , NULL //assumps is empty
             , 0 //number of hashes (information only)
             , 1 //min num. solutions
@@ -595,17 +568,9 @@ uint32_t Sampler::gen_n_samples(
 vector<int> Sampler::get_solution_ints(const vector<lbool>& model)
 {
     vector<int> solution;
-    if (conf.only_indep_samples) {
-        for (uint32_t j = 0; j < appmc->get_sampling_set().size(); j++) {
-            uint32_t var = appmc->get_sampling_set()[j];
-            assert(model[var] != l_Undef);
-            solution.push_back(((model[var] != l_True) ? -1: 1) * ((int)var + 1));
-        }
-    } else {
-        for(uint32_t var = 0; var < orig_num_vars; var++) {
-            assert(model[var] != l_Undef);
-            solution.push_back(((model[var] != l_True) ? -1: 1) * ((int)var + 1));
-        }
+    for(const uint32_t var: conf.full_sampling_vars) {
+        assert(model[var] != l_Undef);
+        solution.push_back(((model[var] != l_True) ? -1: 1) * ((int)var + 1));
     }
     return solution;
 }
@@ -730,7 +695,6 @@ void Sampler::check_model(
     if (!hm)
         return;
 
-    uint32_t checked = 0;
     bool ok = true;
     for(const auto& h: hm->hashes) {
         //This hash is number: h.first
@@ -738,7 +702,6 @@ void Sampler::check_model(
         //Notice that "h.first" is numbered from 0, so it's a "<" not "<="
         if (h.first < hashCount) {
             //cout << "Checking model against hash" << h.first << endl;
-            checked++;
             ok &= check_model_against_hash(h.second, model);
             if (!ok) break;
         }

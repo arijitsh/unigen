@@ -340,7 +340,7 @@ if (GIT_EXECUTABLE)
 else()
   set(GIT_SHA "GIT-hash-notfound")
 endif()
-set(unigen_FULL_VERSION "2.5.1")
+set(unigen_FULL_VERSION "2.5.7")
 
 string(REPLACE "." ";" unigen_FULL_VERSION_LIST ${unigen_FULL_VERSION})
 SetVersionNumber("PROJECT" ${unigen_FULL_VERSION_LIST})
@@ -413,7 +413,7 @@ endmacro()
 # Dependencies
 # -----------------------------------------------------------------------------
 set(boost_components "")
-set(boost_components ${boost_components} program_options)
+set(boost_components ${boost_components} program_options serialization)
 find_package( Boost 1.46 COMPONENTS ${boost_components})
 
 option(NOZLIB "Don't use zlib" OFF)

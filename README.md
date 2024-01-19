@@ -23,20 +23,30 @@ There are approx. 16  solutions over the sampling set. Samples:  [[1, -2, 3, -4]
 
 ```
 sudo apt-get install build-essential cmake
-sudo apt-get install zlib1g-dev libboost-program-options-dev libm4ri-dev
+sudo apt-get install zlib1g-dev libboost-program-options-dev libboost-serialization-dev
+
 git clone https://github.com/msoos/cryptominisat
 cd cryptominisat
 mkdir build && cd build
-cmake -DUSE_GAUSS=ON ..
+cmake ..
 make
 sudo make install
 cd ../..
+
+git clone https://github.com/meelgroup/arjun/
+cd arjun
+mkdir build && cd build
+cmake ..
+make
+sudo make install
+
 git clone https://github.com/meelgroup/approxmc/
 cd approxmc
 mkdir build && cd build
 cmake ..
 make
 sudo make install
+
 cd ../..
 git clone https://github.com/meelgroup/unigen/
 cd unigen

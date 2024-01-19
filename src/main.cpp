@@ -73,7 +73,6 @@ uint32_t simplify;
 double var_elim_ratio;
 uint32_t detach_xors = 1;
 uint32_t reuse_models = 1;
-uint32_t force_sol_extension = 0;
 uint32_t sparse;
 int use_unisamp = 0;
 
@@ -83,12 +82,9 @@ bool sampling_vars_found = false;
 int ignore_sampl_set = 0;
 int do_arjun = 1;
 int debug_arjun = 0;
-int arjun_incidence_sort;
-int do_empty_occ = 1;
 
 //sampling
 uint32_t num_samples = 500;
-int only_indep_samples ;
 int multisample;
 std::string sample_fname;
 double kappa;
@@ -114,8 +110,6 @@ void add_UniGen_options()
     UniG tmp2(NULL);
     kappa = tmp2.get_kappa();
     multisample = tmp2.get_multisample();
-    only_indep_samples = tmp2.get_only_indep_samples();
-    force_sol_extension = tmp2.get_force_sol_extension();
     verb_sampler_cls = tmp2. get_verb_sampler_cls();
 
     std::ostringstream my_epsilon;
@@ -141,20 +135,12 @@ void add_UniGen_options()
         , "delta parameter as per PAC guarantees; 1-delta is the confidence")
     ("log", po::value(&logfilename),
          "Logs of ApproxMC execution")
-    ("emptyocc", po::value(&do_empty_occ)->default_value(do_empty_occ),
-         "Use empty occ")
-    ("unisamp", po::value(&use_unisamp)->default_value(use_unisamp)
-        , "Use UniSamp strategy to sample")
     ;
 
     ArjunNS::Arjun tmpa;
-    arjun_incidence_sort = tmpa.get_incidence_sort();
-
     arjun_options.add_options()
     ("arjun", po::value(&do_arjun)->default_value(do_arjun)
         , "Use arjun to minimize sampling set")
-    ("arjuninc", po::value(&arjun_incidence_sort)->default_value(arjun_incidence_sort)
-        , "Select incidence sorting. Probe-based is 3. Simple incidence-based is 1. Component-to-other-component based is 5. Random is 5")
     ("debugarjun", po::value(&debug_arjun)->default_value(debug_arjun)
         , "Use CNF from Arjun, but use sampling set from CNF")
     ;
@@ -166,8 +152,6 @@ void add_UniGen_options()
         , "Detach XORs in CMS")
     ("reusemodels", po::value(&reuse_models)->default_value(reuse_models)
         , "Reuse models while counting solutions")
-    ("forcesolextension", po::value(&force_sol_extension)->default_value(force_sol_extension)
-        , "Use trick of not extending solutions in the SAT solver to full solution")
     ;
 
     misc_options.add_options()
@@ -182,8 +166,6 @@ void add_UniGen_options()
     sampling_options.add_options()
     ("samples", po::value(&num_samples)->default_value(num_samples)
         , "Number of random samples to generate. CAV2020 paper has 500, the default")
-    ("nosolext", po::value(&only_indep_samples)->default_value(only_indep_samples)
-        , "Should only output the independent vars from the samples")
     ("multisample", po::value(&multisample)->default_value(multisample)
         , "Return multiple samples from each call")
     ("sampleout", po::value(&sample_fname)
@@ -224,6 +206,10 @@ void add_supported_options(int argc, char** argv)
             ApproxMC::AppMC tmp;
             UniG tmp2(&tmp);
             cout << tmp2.get_version_info();
+            ArjunNS::Arjun tmp3;
+            cout << "c Arjun Version: "
+            << tmp3.get_version_info() << endl;
+            cout << tmp3.get_solver_version_info();
             std::exit(0);
         }
 
@@ -400,14 +386,12 @@ void read_input_cnf(T* reader)
     }
 }
 
-void print_orig_sampling_vars(const vector<uint32_t>& orig_sampling_vars)
+void print_sampling_vars_orig(const vector<uint32_t>& sampling_vars_orig)
 {
     cout << "c [unig] Original sampling vars: ";
-    for(auto v: orig_sampling_vars) {
-        cout << v << " ";
-    }
+    for(auto v: sampling_vars_orig) cout << v << " ";
     cout << endl;
-    cout << "c [unig] Orig sampling vars size: " << orig_sampling_vars.size() << endl;
+    cout << "c [unig] Orig sampling vars size: " << sampling_vars_orig.size() << endl;
 }
 
 void set_up_sampling_set()
@@ -464,9 +448,7 @@ inline double stats_line_percent(double num, double total)
 void print_final_indep_set(const vector<uint32_t>& indep_set, uint32_t orig_sampling_set_size)
 {
     cout << "c [arjun] final indep set: ";
-    for(const uint32_t s: indep_set) {
-        cout << s+1 << " ";
-    }
+    for(const uint32_t s: indep_set) cout << s+1 << " ";
     cout << "0" << endl;
 
     cout << "c [arjun] final set size: " << std::setw(8)
@@ -475,6 +457,15 @@ void print_final_indep_set(const vector<uint32_t>& indep_set, uint32_t orig_samp
     <<  std::setw(6) << std::setprecision(4)
     << stats_line_percent(indep_set.size(), orig_sampling_set_size)
     << " %" << endl << std::flush;
+}
+
+template <class T>
+void check_sanity_sampling_vars(T vars, const uint32_t nvars)
+{
+    for(const auto& v: vars) if (v >= nvars) {
+        cout << "ERROR: sampling set provided is incorrect, it has a variable in it: " << v+1 << " that is larger than the total number of variables: " << nvars << endl;
+        exit(-1);
+    }
 }
 
 int main(int argc, char** argv)
@@ -535,63 +526,40 @@ int main(int argc, char** argv)
     vector<uint32_t> empty_occ_sampl_vars;
     vector<uint32_t> sampling_vars_orig;
     if (do_arjun) {
-        //Arjun-based minimization
         arjun = new ArjunNS::Arjun;
         arjun->set_seed(seed);
         arjun->set_verbosity(verbosity);
-        arjun->set_incidence_sort(arjun_incidence_sort);
-        if (verbosity) {
-            cout << "c Arjun SHA revision " <<  arjun->get_version_info() << endl;
-        }
+        if (verbosity) cout << "c Arjun SHA revision " <<  arjun->get_version_info() << endl;
 
         read_input_cnf(arjun);
         set_up_sampling_set();
         sampling_vars_orig = sampling_vars;
-        print_orig_sampling_vars(sampling_vars_orig);
+        check_sanity_sampling_vars(sampling_vars, arjun->get_orig_num_vars());
+        print_sampling_vars_orig(sampling_vars_orig);
         get_cnf_from_arjun();
         sampling_vars = arjun->get_indep_set();
-        empty_occ_sampl_vars = arjun->get_empty_occ_sampl_vars();
         print_final_indep_set(sampling_vars , sampling_vars_orig.size());
-        if (debug_arjun) {
-            sampling_vars = sampling_vars_orig;
-            empty_occ_sampl_vars.clear();
-        }
+        if (debug_arjun) sampling_vars = sampling_vars_orig;
         delete arjun;
     } else {
         read_input_cnf(appmc);
         if (!sampling_vars_found || ignore_sampl_set) {
             sampling_vars.clear();
-            for(uint32_t i = 0; i < appmc->nVars(); i++) {
-                sampling_vars.push_back(i);
-            }
+            for(uint32_t i = 0; i < appmc->nVars(); i++) sampling_vars.push_back(i);
         }
         sampling_vars_orig = sampling_vars;
-        //print_orig_sampling_vars(sampling_vars, appmc);
-    }
-
-    if (do_empty_occ) {
-        std::set<uint32_t> sampl_vars_set;
-        sampl_vars_set.insert(sampling_vars.begin(), sampling_vars.end());
-        for(auto const& v: empty_occ_sampl_vars) {
-            assert(sampl_vars_set.find(v) != sampl_vars_set.end()); // this is guaranteed by arjun
-            sampl_vars_set.erase(v);
-        }
-        sampling_vars.clear();
-        sampling_vars.insert(sampling_vars.end(), sampl_vars_set.begin(), sampl_vars_set.end());
+        //print_sampling_vars_orig(sampling_vars, appmc);
     }
 
     appmc->set_projection_set(sampling_vars);
+    check_sanity_sampling_vars(sampling_vars, appmc->nVars());
     auto sol_count = appmc->count();
-    if (do_empty_occ) sol_count.hashCount += empty_occ_sampl_vars.size();
 
-    appmc->set_projection_set(sampling_vars_orig);
     unigen->set_verbosity(verbosity);
-    unigen->set_verb_banning_cls(verb_banning_cls);
+    unigen->set_verb_sampler_cls(verb_banning_cls);
     unigen->set_kappa(kappa);
     unigen->set_multisample(multisample);
-    unigen->set_unisamp(use_unisamp); // This should be called after multisample, as it disables multisample
-    unigen->set_only_indep_samples(only_indep_samples);
-    unigen->set_force_sol_extension(force_sol_extension);
+    unigen->set_full_sampling_vars(sampling_vars_orig);
 
     std::ofstream logfile;
     if (logfilename != "") {
