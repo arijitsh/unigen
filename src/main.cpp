@@ -74,7 +74,7 @@ uint32_t detach_xors = 1;
 uint32_t reuse_models = 1;
 uint32_t sparse;
 uint32_t use_unisamp = 0;
-double unisamp_epsilon;
+double unisamp_epsilon = 0.1;
 
 //Arjun
 vector<uint32_t> sampling_vars;
@@ -556,6 +556,8 @@ int main(int argc, char** argv)
     unigen->set_kappa(kappa);
     unigen->set_multisample(multisample);
     unigen->set_full_sampling_vars(sampling_vars_orig);
+    unigen->set_unisamp(use_unisamp);
+    unigen->set_unisamp_epsilon(unisamp_epsilon);
 
     std::ofstream logfile;
     if (logfilename != "") {
