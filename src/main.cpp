@@ -513,6 +513,11 @@ int main(int argc, char** argv)
     //Misc options
     appmc->set_simplify(simplify);
     appmc->set_var_elim_ratio(var_elim_ratio);
+    if (use_unisamp){
+        double appmc_delta = std::min(0.1, unisamp_epsilon/4.0);
+        appmc->set_epsilon(0.41421);
+        appmc->set_delta(appmc_delta);
+    }
 
     if (logfilename != "") {
         appmc->set_up_log(logfilename);
