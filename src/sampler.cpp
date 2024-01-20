@@ -484,7 +484,7 @@ uint32_t Sampler::gen_n_samples(
             // Number of solutions too small or too large
 
             // At q-1, and need to pick next hash count
-            if (j == 0 && currentHashOffset == 1 && conf.use_unisamp) {
+            if (j == 0 && currentHashOffset == 1 && !conf.use_unisamp) {
                 if (solutionCount < loThresh) {
                     // Go to q-2; next will be q
                     hashOffsets[1] = 0;
