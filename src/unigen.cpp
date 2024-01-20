@@ -124,6 +124,5 @@ DLL_PUBLIC void UniG::set_unisamp_epsilon(double unisamp_epsilon)
         std::cout << "c [unisamp] Epsilon of Sampling = " << data->conf.unisamp_epsilon << std::endl;
     } else {
         std::cout << "c [unisamp] Have you forgot to turn on set_unisamp?" << std::endl;
-        set_unisamp(1);
     }
 }

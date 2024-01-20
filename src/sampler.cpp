@@ -289,7 +289,7 @@ void Sampler::sample(
     }
     if (conf.use_unisamp){
         si = std::floor(solCount.hashCount + log2(solCount.cellSolCount)
-            - log2(threshold_Samplergen));
+            - log2(threshold_Samplergen) - 0.5);
     } else {
         si = round(solCount.hashCount + log2(solCount.cellSolCount)
             + log2(1.8) - log2(threshold_Samplergen)) - 2;
@@ -451,7 +451,14 @@ uint32_t Sampler::gen_n_samples(
 
         map<uint64_t, Hash> hashes;
         bool ok;
-        for (uint32_t j = 0; j < 3; j++) {
+        uint32_t numoffsets = 3;
+
+        if(conf.use_unisamp){
+            numoffsets = 1;
+            hashOffsets[0] = 0;
+        }
+
+        for (uint32_t j = 0; j < numoffsets; j++) {
             uint32_t currentHashOffset = hashOffsets[j];
             uint32_t currentHashCount = currentHashOffset + conf.startiter;
             const vector<Lit> assumps = set_num_hashes(currentHashCount, hashes);
@@ -477,7 +484,7 @@ uint32_t Sampler::gen_n_samples(
             // Number of solutions too small or too large
 
             // At q-1, and need to pick next hash count
-            if (j == 0 && currentHashOffset == 1) {
+            if (j == 0 && currentHashOffset == 1 && conf.use_unisamp) {
                 if (solutionCount < loThresh) {
                     // Go to q-2; next will be q
                     hashOffsets[1] = 0;
