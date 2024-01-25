@@ -353,7 +353,8 @@ void Sampler::generate_samples(const uint32_t num_samples_needed)
 
     if (conf.use_unisamp){
         hiThresh =  2 + std::floor(4 * threshold_Samplergen);
-        loThresh = 1 + rand() % hiThresh;
+        distr = std::uniform_int_distribution<>(1, hiThresh);
+        loThresh = distr(randomEngine);
     } else {
         hiThresh = ceil(1 + (1.4142136 * (1 + conf.kappa) * threshold_Samplergen));
         loThresh = floor(threshold_Samplergen / (1.4142136 * (1 + conf.kappa)));
@@ -456,6 +457,7 @@ uint32_t Sampler::gen_n_samples(
         if(conf.use_unisamp){
             numoffsets = 1;
             hashOffsets[0] = 0;
+            loThresh = distr(randomEngine);
         }
 
         for (uint32_t j = 0; j < numoffsets; j++) {
