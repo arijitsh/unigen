@@ -72,6 +72,8 @@ public:
     void set_force_sol_extension(bool force_sol_extension);
     void set_logfile(std::ostream* logfile);
     void set_verbosity(uint32_t verb);
+    void set_unisamp(int use_unisamp);
+    void set_unisamp_epsilon(double unisamp_epsilon);
     void set_callback(UniGen::callback f, void* data);
     void set_full_sampling_vars(const std::vector<uint32_t>& full_sampl_vars);
 

@@ -73,6 +73,8 @@ double var_elim_ratio;
 uint32_t detach_xors = 1;
 uint32_t reuse_models = 1;
 uint32_t sparse;
+uint32_t use_unisamp = 0;
+double unisamp_epsilon = 0.1;
 
 //Arjun
 vector<uint32_t> sampling_vars;
@@ -125,10 +127,14 @@ void add_UniGen_options()
     ("input", po::value< vector<string> >(), "file(s) to read")
     ("verb,v", po::value(&verbosity)->default_value(1), "verbosity")
     ("seed,s", po::value(&seed)->default_value(seed), "Seed")
+    ("unisamp,us", po::value(&use_unisamp)->default_value(0)
+        , "Use UniSamp Strategy")
     ("version", "Print version info")
 
     ("epsilon", po::value(&epsilon)->default_value(epsilon, my_epsilon.str())
         , "epsilon parameter as per PAC guarantees")
+    ("unisamp_epsilon,se", po::value(&unisamp_epsilon)->default_value(unisamp_epsilon, my_epsilon.str())
+        , "epsilon parameter for unisamp sampler")
     ("delta", po::value(&delta)->default_value(delta, my_delta.str())
         , "delta parameter as per PAC guarantees; 1-delta is the confidence")
     ("log", po::value(&logfilename),
@@ -507,6 +513,11 @@ int main(int argc, char** argv)
     //Misc options
     appmc->set_simplify(simplify);
     appmc->set_var_elim_ratio(var_elim_ratio);
+    if (use_unisamp){
+        double appmc_delta = std::min(0.1, unisamp_epsilon/4.0);
+        appmc->set_epsilon(0.41421);
+        appmc->set_delta(appmc_delta);
+    }
 
     if (logfilename != "") {
         appmc->set_up_log(logfilename);
@@ -550,6 +561,8 @@ int main(int argc, char** argv)
     unigen->set_kappa(kappa);
     unigen->set_multisample(multisample);
     unigen->set_full_sampling_vars(sampling_vars_orig);
+    unigen->set_unisamp(use_unisamp);
+    unigen->set_unisamp_epsilon(unisamp_epsilon);
 
     std::ofstream logfile;
     if (logfilename != "") {

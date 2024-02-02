@@ -35,6 +35,8 @@
 struct Config {
     uint32_t startiter = 0;
     unsigned verb = 1;
+    unsigned use_unisamp = 0;
+    double unisamp_epsilon = 0.1;
     unsigned verb_sampler_cls = 0;
     uint32_t multisample = 1;
     int force_sol_extension = 0;

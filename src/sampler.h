@@ -196,6 +196,7 @@ private:
     ////////////////
     double startTime;
     std::mt19937 randomEngine;
+    std::uniform_int_distribution<> distr; // used in Unisamp loThresh generation
     uint32_t orig_num_vars;
     double total_inter_simp_time = 0;
     uint32_t threshold; //precision, it's computed

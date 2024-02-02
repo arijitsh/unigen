@@ -258,6 +258,8 @@ void Sampler::sample(
     const ApproxMC::SolCount solCount,
     const uint32_t num_samples)
 {
+    double si;
+
     conf = _conf;
     solver = appmc->get_solver();
     orig_num_vars = solver->nVars();
@@ -271,9 +273,13 @@ void Sampler::sample(
         exit(-1);
     }
 
-    /* Compute threshold via formula from TACAS-15 paper */
-    threshold_Samplergen = ceil(4.03 * (1 + (1/conf.kappa)) * (1 + (1/conf.kappa)));
-
+    if (conf.use_unisamp){
+        /* Compute pivot via formula from LICS-22 paper */
+        threshold_Samplergen = std::max((uint32_t)200, (uint32_t)(2/conf.unisamp_epsilon));
+    } else {
+        /* Compute pivot via formula from TACAS-15 paper */
+        threshold_Samplergen = ceil(4.03 * (1 + (1/conf.kappa)) * (1 + (1/conf.kappa)));
+    }
     //No startiter, we have to figure it out
     assert(conf.startiter == 0);
 
@@ -281,9 +287,13 @@ void Sampler::sample(
         cout << "c [unig] The input formula is unsatisfiable." << endl;
         exit(-1);
     }
-
-    double si = round(solCount.hashCount + log2(solCount.cellSolCount)
-        + log2(1.8) - log2(threshold_Samplergen)) - 2;
+    if (conf.use_unisamp){
+        si = std::floor(solCount.hashCount + log2(solCount.cellSolCount)
+            - log2(threshold_Samplergen) - 0.5);
+    } else {
+        si = round(solCount.hashCount + log2(solCount.cellSolCount)
+            + log2(1.8) - log2(threshold_Samplergen)) - 2;
+    }
     if (si > 0) {
         conf.startiter = si;
     } else {
@@ -341,8 +351,14 @@ void Sampler::generate_samples(const uint32_t num_samples_needed)
 {
     double genStartTime = cpuTimeTotal();
 
-    hiThresh = ceil(1 + (1.4142136 * (1 + conf.kappa) * threshold_Samplergen));
-    loThresh = floor(threshold_Samplergen / (1.4142136 * (1 + conf.kappa)));
+    if (conf.use_unisamp){
+        hiThresh =  2 + std::floor(4 * threshold_Samplergen);
+        distr = std::uniform_int_distribution<>(1, hiThresh);
+        loThresh = distr(randomEngine);
+    } else {
+        hiThresh = ceil(1 + (1.4142136 * (1 + conf.kappa) * threshold_Samplergen));
+        loThresh = floor(threshold_Samplergen / (1.4142136 * (1 + conf.kappa)));
+    }
     const uint32_t samplesPerCall = sols_to_return(num_samples_needed);
     const uint32_t callsNeeded =
         num_samples_needed / samplesPerCall + (bool)(num_samples_needed % samplesPerCall);
@@ -366,6 +382,7 @@ void Sampler::generate_samples(const uint32_t num_samples_needed)
     }
 
     uint32_t samples = 0;
+
     if (conf.startiter > 0) {
         uint32_t lastSuccessfulHashOffset = 0;
         while(samples < num_samples_needed) {
@@ -435,7 +452,15 @@ uint32_t Sampler::gen_n_samples(
 
         map<uint64_t, Hash> hashes;
         bool ok;
-        for (uint32_t j = 0; j < 3; j++) {
+        uint32_t numoffsets = 3;
+
+        if(conf.use_unisamp){
+            numoffsets = 1;
+            hashOffsets[0] = 0;
+            loThresh = distr(randomEngine);
+        }
+
+        for (uint32_t j = 0; j < numoffsets; j++) {
             uint32_t currentHashOffset = hashOffsets[j];
             uint32_t currentHashCount = currentHashOffset + conf.startiter;
             const vector<Lit> assumps = set_num_hashes(currentHashCount, hashes);
@@ -461,7 +486,7 @@ uint32_t Sampler::gen_n_samples(
             // Number of solutions too small or too large
 
             // At q-1, and need to pick next hash count
-            if (j == 0 && currentHashOffset == 1) {
+            if (j == 0 && currentHashOffset == 1 && !conf.use_unisamp) {
                 if (solutionCount < loThresh) {
                     // Go to q-2; next will be q
                     hashOffsets[1] = 0;
